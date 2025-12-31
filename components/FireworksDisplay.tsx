@@ -2,21 +2,38 @@ import React, { useEffect, useRef } from 'react';
 
 // --- CONFIGURATION ---
 const PHYSICS = {
-    friction: 0.96,
-    gravity: 0.04, 
+    friction: 0.95, // Increased air resistance for "pop then stop" effect
+    gravity: 0.04,  
 };
 
 // --- PALETTES ---
 const GOLDEN_HOUR = [
-    { h: 45, s: 100, l: 50 }, // Pure Gold
-    { h: 35, s: 100, l: 60 }, // Amber
-    { h: 25, s: 100, l: 65 }, // Light Orange
-    { h: 50, s: 90, l: 80 },  // Pale Gold
+    { h: 45, s: 100, l: 50 },
+    { h: 38, s: 100, l: 60 },
+    { h: 28, s: 100, l: 65 },
+];
+
+const DEEP_BLUE = [
+    { h: 220, s: 90, l: 60 },
+    { h: 200, s: 100, l: 60 },
+    { h: 240, s: 80, l: 70 },
+];
+
+const VIBRANT_RED = [
+    { h: 350, s: 90, l: 55 },
+    { h: 10, s: 100, l: 60 },
+    { h: 330, s: 100, l: 50 },
+];
+
+const ELECTRIC_GREEN = [
+    { h: 140, s: 100, l: 50 },
+    { h: 120, s: 90, l: 60 },
+    { h: 160, s: 100, l: 60 },
 ];
 
 const WHITE_GLITTER = { h: 0, s: 0, l: 100 };
 
-// GOOGLE BRAND COLORS (HSL approximations)
+// GOOGLE BRAND COLORS (for text)
 const GOOGLE_BLUE = { h: 217, s: 89, l: 61 };
 const GOOGLE_RED = { h: 5, s: 81, l: 56 };
 const GOOGLE_YELLOW = { h: 45, s: 96, l: 51 };
@@ -40,18 +57,22 @@ export const FireworksDisplay: React.FC = () => {
 
     // --- UTILS ---
     const rand = (min: number, max: number) => Math.random() * (max - min) + min;
-    const randColor = (palette: typeof GOLDEN_HOUR) => palette[Math.floor(Math.random() * palette.length)];
+    const randColor = (palette: {h:number, s:number, l:number}[]) => palette[Math.floor(Math.random() * palette.length)];
 
     // --- TEXT BITMAP GENERATOR ---
-    const getTextParticleCoordinates = (text: string, fontSize: number = 180): {x: number, y: number}[] => {
+    const getTextParticleCoordinates = (text: string, fontSize: number = 160): {x: number, y: number}[] => {
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         if (!tempCtx) return [];
 
-        tempCanvas.width = fontSize * 1.5;
-        tempCanvas.height = fontSize * 1.5;
+        // Smaller font for longer words
+        const isMobile = window.innerWidth < 768;
+        const actualFontSize = isMobile ? fontSize * 0.5 : fontSize;
+
+        tempCanvas.width = actualFontSize * text.length * 1.2;
+        tempCanvas.height = actualFontSize * 2;
         
-        tempCtx.font = `900 ${fontSize}px "Space Grotesk", sans-serif`;
+        tempCtx.font = `900 ${actualFontSize}px "Space Grotesk", sans-serif`;
         tempCtx.fillStyle = 'white';
         tempCtx.textAlign = 'center';
         tempCtx.textBaseline = 'middle';
@@ -104,25 +125,25 @@ export const FireworksDisplay: React.FC = () => {
             this.light = light;
             this.behavior = behavior;
             this.alpha = 1;
-            this.size = behavior === 'glitter' ? rand(1.5, 2.5) : rand(1, 2);
+            
+            this.size = behavior === 'glitter' ? rand(1, 2.5) : rand(1, 2.5);
 
-            // Decay Logic
+            // DECAY LOGIC - CUSTOMIZED
             if (this.behavior === 'heavy') {
+                // Pferdeschwanz: Schneller vergehen als vorher (was 0.0015)
                 this.decay = rand(0.005, 0.008); 
             } else if (this.behavior === 'glitter') {
-                this.decay = rand(0.008, 0.015);
+                this.decay = rand(0.006, 0.012);
             } else if (this.behavior === 'text') {
-                this.decay = rand(0.015, 0.025); // Faster decay so text doesn't stick forever
-                this.size = 2;
+                this.decay = rand(0.008, 0.015); 
             } else if (this.behavior === 'fountain') {
-                this.decay = rand(0.02, 0.04);
-                this.size = rand(0.5, 1.5);
+                this.decay = rand(0.015, 0.025);
             } else if (this.behavior === 'trail') {
-                this.decay = rand(0.04, 0.08); // Trails fade fast
-                this.size = rand(0.5, 1.5);
-                this.light = 80; // Trails are bright
+                this.decay = rand(0.04, 0.08); 
+                this.size = rand(0.5, 1.2);    
             } else {
-                this.decay = rand(0.01, 0.02);
+                // Standard Explosion
+                this.decay = rand(0.01, 0.02); 
             }
         }
 
@@ -133,15 +154,14 @@ export const FireworksDisplay: React.FC = () => {
             if (this.behavior === 'heavy') {
                 this.vx *= 0.92; 
                 this.vy *= 0.92; 
-                this.vy += PHYSICS.gravity * 2.5; 
+                this.vy += 0.04; // Gravity for falling sparks
             } else if (this.behavior === 'text') {
-                 this.vx *= 0.92;
-                 this.vy *= 0.92;
-                 this.vy += 0.02; 
+                 this.vx *= 0.90;
+                 this.vy *= 0.90;
             } else if (this.behavior === 'trail') {
-                 this.vx *= 0.9;
-                 this.vy *= 0.9;
-                 this.vy += 0.01;
+                 this.vx *= 0.5; 
+                 this.vy *= 0.5;
+                 this.vy += 0.01; 
             } else {
                 this.vx *= PHYSICS.friction;
                 this.vy *= PHYSICS.friction;
@@ -152,42 +172,32 @@ export const FireworksDisplay: React.FC = () => {
             this.y += this.vy;
             this.alpha -= this.decay;
             
-            if (this.alpha < 0.5) this.size *= 0.95;
+            if (this.alpha < 0.2) this.size *= 0.9;
 
             // Sparkle logic
             if (this.behavior === 'glitter') {
-                if (Math.random() > 0.7) {
+                if (Math.random() > 0.8) { 
                     this.light = 100; 
-                    this.size = 3; 
+                    this.alpha = 1;
                 } else {
                     this.light = 60; 
-                    this.size = rand(1, 2);
                 }
             }
         }
 
         draw(ctx: CanvasRenderingContext2D) {
+            if (this.alpha <= 0) return;
+
             ctx.save();
             ctx.globalAlpha = this.alpha;
             
             ctx.beginPath();
-            
-            if (this.behavior === 'glitter' && this.light === 100) {
-                ctx.strokeStyle = `hsl(${this.hue}, ${this.sat}%, ${this.light}%)`;
-                ctx.lineWidth = 1;
-                ctx.moveTo(this.x - 3, this.y);
-                ctx.lineTo(this.x + 3, this.y);
-                ctx.moveTo(this.x, this.y - 3);
-                ctx.lineTo(this.x, this.y + 3);
-                ctx.stroke();
-            } else {
-                ctx.strokeStyle = `hsl(${this.hue}, ${this.sat}%, ${this.light}%)`;
-                ctx.lineWidth = this.size;
-                ctx.lineCap = 'round';
-                ctx.moveTo(this.prevX, this.prevY);
-                ctx.lineTo(this.x, this.y);
-                ctx.stroke();
-            }
+            ctx.strokeStyle = `hsl(${this.hue}, ${this.sat}%, ${this.light}%)`;
+            ctx.lineWidth = this.size;
+            ctx.lineCap = 'round';
+            ctx.moveTo(this.prevX, this.prevY);
+            ctx.lineTo(this.x, this.y);
+            ctx.stroke();
             
             ctx.restore();
         }
@@ -205,7 +215,7 @@ export const FireworksDisplay: React.FC = () => {
         exploded: boolean;
         type: RocketType;
         textChar?: string;
-
+        
         constructor(x: number, targetY: number, color: {h: number, s: number, l: number}, type: RocketType = 'peony', textChar?: string, velocityOverride?: {vx: number, vy: number}) {
             this.x = x;
             this.y = canvas!.height;
@@ -222,40 +232,39 @@ export const FireworksDisplay: React.FC = () => {
                 this.vy = velocityOverride.vy;
             } else {
                 const height = canvas!.height - targetY;
-                let speed = -Math.sqrt(2 * 0.15 * height); 
+                // Fast launch
+                let speed = -Math.sqrt(2 * 0.22 * height); 
+                
                 if (type === 'mine') speed = -15; 
                 
                 this.vy = speed;
-                this.vx = 0 + rand(-0.5, 0.5); 
+                this.vx = rand(-0.3, 0.3); 
             }
         }
 
         update() {
-            this.vy += 0.15; // Gravity
+            this.vy += 0.22;
             this.x += this.vx;
             this.y += this.vy;
 
-            // EMIT TRAIL PARTICLES
-            // Instead of drawing a persistent line, we drop particles
-            // This prevents "lines that don't go away"
-            if (this.type !== 'mine') { // Mines don't have trails
-                for(let i=0; i<2; i++) {
-                    const t = new Particle(
-                        this.x + rand(-1, 1), 
-                        this.y + rand(-1, 1), 
-                        this.vx * 0.1 + rand(-0.2, 0.2), 
-                        this.vy * 0.1 + rand(-0.2, 0.2), 
-                        this.hue, 
-                        this.sat, 
-                        this.light, 
-                        'trail'
-                    );
-                    particles.push(t);
-                }
+            // Clean Trail
+            if (this.type !== 'mine' && this.type !== 'text') { 
+                const t = new Particle(
+                    this.x, 
+                    this.y, 
+                    rand(-0.2, 0.2), 
+                    rand(0.5, 1.0), 
+                    this.hue, 
+                    this.sat, 
+                    this.light, 
+                    'trail'
+                );
+                particles.push(t);
             }
 
             const reachedTarget = this.vy >= -0.5 || this.y <= this.targetY;
-            if (reachedTarget) {
+            
+            if (reachedTarget || this.y < -50) {
                 this.explode();
             }
         }
@@ -263,10 +272,10 @@ export const FireworksDisplay: React.FC = () => {
         draw(ctx: CanvasRenderingContext2D) {
             if (this.type === 'mine') return; 
 
-            // Just draw the "Head" of the rocket
-            ctx.fillStyle = `hsl(${this.hue}, ${this.sat}%, 80%)`;
+            // HEAD: Tiny
+            ctx.fillStyle = `hsl(${this.hue}, ${this.sat}%, 90%)`;
             ctx.beginPath();
-            ctx.arc(this.x, this.y, 2.5, 0, Math.PI * 2);
+            ctx.arc(this.x, this.y, 1.5, 0, Math.PI * 2); 
             ctx.fill();
         }
 
@@ -278,29 +287,36 @@ export const FireworksDisplay: React.FC = () => {
 
             switch (this.type) {
                 case 'peony':
-                    count = 100;
-                    power = rand(4, 7);
+                    // "Explosionsartig" -> Higher power
+                    count = 90; 
+                    power = rand(6, 11); 
                     behavior = 'normal';
                     break;
                 case 'horsetail':
                     count = 150;
-                    power = rand(3, 5); 
-                    behavior = 'heavy';
+                    power = rand(5, 9); // Explosive start, then falls
+                    behavior = 'heavy'; 
                     break;
                 case 'mine':
-                    count = 60;
-                    power = rand(5, 12);
+                    count = 40;
+                    power = rand(4, 8); 
                     behavior = 'normal';
                     break;
-                case 'crackle_fan':
                 case 'wiper_white':
+                    // "Normal groß wie rakete"
                     count = 80;
+                    power = rand(5, 9); 
+                    behavior = 'glitter';
+                    break;
+                case 'crackle_fan':
+                    count = 60;
                     power = rand(5, 8);
                     behavior = 'glitter';
                     break;
                 case 'finale_white':
-                    count = 600; 
-                    power = 18; 
+                    // "Weiße große explosion kleiner"
+                    count = 250; 
+                    power = 10; // Was 16/18
                     behavior = 'glitter';
                     break;
                 case 'text':
@@ -311,46 +327,44 @@ export const FireworksDisplay: React.FC = () => {
             if (this.type === 'text' && this.textChar) {
                 const points = getTextParticleCoordinates(this.textChar);
                 points.forEach(p => {
-                    const vx = p.x * 0.05 + rand(-0.2, 0.2);
-                    const vy = p.y * 0.05 + rand(-0.2, 0.2);
+                    const vx = p.x * 0.05 + rand(-0.1, 0.1);
+                    const vy = p.y * 0.05 + rand(-0.1, 0.1);
                     particles.push(new Particle(this.x, this.y, vx, vy, this.hue, this.sat, this.light, behavior));
                 });
                 return;
             }
 
+            // STANDARD EXPLOSIONS
             for (let i = 0; i < count; i++) {
                 let a = rand(0, Math.PI * 2); 
+                // Power distribution for more natural explosion
                 let s = Math.pow(Math.random(), 0.5) * power; 
                 
                 let vx = Math.cos(a) * s;
                 let vy = Math.sin(a) * s;
 
-                // SPECIAL GEOMETRY
                 if (this.type === 'horsetail') {
+                    // Slight upward bias
                     a = rand(Math.PI * 1.1, Math.PI * 1.9); 
-                    s = rand(2, 6);
+                    s = rand(3, 8);
                     vx = Math.cos(a) * s;
                     vy = Math.sin(a) * s;
                 }
                 
                 if (this.type === 'mine') {
-                    a = rand(Math.PI * 1.2, Math.PI * 1.8);
-                    s = rand(8, 15);
+                    a = rand(Math.PI * 1.1, Math.PI * 1.9);
+                    s = rand(6, 12);
                     vx = Math.cos(a) * s;
                     vy = Math.sin(a) * s;
                 }
 
-                // Color Variation
+                // Color Variety within palette
                 let h = this.hue;
                 let sat = this.sat;
                 let l = this.light;
-
-                if (this.type !== 'finale_white' && this.type !== 'text' && this.type !== 'wiper_white') {
-                    const mix = randColor(GOLDEN_HOUR);
-                    h = mix.h;
-                    sat = mix.s;
-                    l = mix.l;
-                }
+                
+                // Variate slightly around the base color for depth
+                h += rand(-10, 10);
 
                 particles.push(new Particle(this.x, this.y, vx, vy, h, sat, l, behavior));
             }
@@ -362,146 +376,130 @@ export const FireworksDisplay: React.FC = () => {
     let frame = 0;
 
     const animate = () => {
-        // --- 1. Clear Screen (Stronger fade to remove imprints) ---
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'; // Increased opacity
+        // --- 1. Clear Screen ---
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // --- 2. Additive Blending ---
+        // --- 2. Switch to Additive Blending ---
         ctx.globalCompositeOperation = 'lighter';
 
         // ==========================================
         //               TIMELINE
         // ==========================================
         
-        // [0-450] ORIGINAL SEQUENCE (Intro + 2026)
+        // --- PHASE 1: GOLD (0 - 1400) ---
         if (frame === 20) rockets.push(new Rocket(canvas.width * 0.5, canvas.height * 0.35, GOLDEN_HOUR[0], 'peony'));
-        if (frame === 140) {
-            rockets.push(new Rocket(canvas.width * 0.3, canvas.height * 0.45, WHITE_GLITTER, 'peony'));
-            rockets.push(new Rocket(canvas.width * 0.7, canvas.height * 0.45, WHITE_GLITTER, 'peony'));
-        }
-        if (frame === 270) {
-            rockets.push(new Rocket(canvas.width * 0.2, canvas.height * 0.3, GOLDEN_HOUR[1], 'peony'));
-            rockets.push(new Rocket(canvas.width * 0.5, canvas.height * 0.25, GOLDEN_HOUR[0], 'peony'));
-            rockets.push(new Rocket(canvas.width * 0.8, canvas.height * 0.3, GOLDEN_HOUR[2], 'peony'));
-        }
         
-        // 2026 WITH GOOGLE COLORS
-        if (frame === 450) {
-            rockets.push(new Rocket(canvas.width * 0.2, canvas.height * 0.4, GOOGLE_BLUE, 'text', '2'));   
-            rockets.push(new Rocket(canvas.width * 0.4, canvas.height * 0.4, GOOGLE_RED, 'text', '0'));  
-            rockets.push(new Rocket(canvas.width * 0.6, canvas.height * 0.4, GOOGLE_YELLOW, 'text', '2')); 
-            rockets.push(new Rocket(canvas.width * 0.8, canvas.height * 0.4, GOOGLE_GREEN, 'text', '6')); 
+        if (frame > 100 && frame < 800 && frame % 120 === 0) {
+             const x = rand(0.2, 0.8) * canvas.width;
+             const y = rand(0.2, 0.5) * canvas.height;
+             rockets.push(new Rocket(x, y, randColor(GOLDEN_HOUR), 'peony'));
         }
 
-        // [650-1350] EXTENDED SHOW 
-        if (frame === 650) {
-            rockets.push(new Rocket(canvas.width * 0.35, canvas.height * 0.20, GOLDEN_HOUR[0], 'horsetail'));
-            rockets.push(new Rocket(canvas.width * 0.65, canvas.height * 0.20, GOLDEN_HOUR[3], 'horsetail'));
-        }
-        if (frame === 660) {
-            rockets.push(new Rocket(canvas.width * 0.25, canvas.height * 0.9, GOLDEN_HOUR[1], 'mine'));
-            rockets.push(new Rocket(canvas.width * 0.75, canvas.height * 0.9, GOLDEN_HOUR[2], 'mine'));
+        // 2026
+        if (frame === 900) {
+            rockets.push(new Rocket(canvas.width * 0.2, canvas.height * 0.4, GOLDEN_HOUR[0], 'text', '2'));   
+            rockets.push(new Rocket(canvas.width * 0.4, canvas.height * 0.4, GOLDEN_HOUR[1], 'text', '0'));  
+            rockets.push(new Rocket(canvas.width * 0.6, canvas.height * 0.4, GOLDEN_HOUR[2], 'text', '2')); 
+            rockets.push(new Rocket(canvas.width * 0.8, canvas.height * 0.4, GOLDEN_HOUR[0], 'text', '6')); 
         }
 
-        // SINGLE POINT FAN 1 (Left to Right Sweep)
-        const fanStart = 850;
-        const centerX = canvas.width * 0.5;
-        if (frame >= fanStart && frame < fanStart + 25 && frame % 5 === 0) {
-            const idx = (frame - fanStart) / 5; 
-            const angleDeg = -110 + (idx * 10); 
-            const rad = angleDeg * (Math.PI / 180);
-            const speed = 14;
-            rockets.push(new Rocket(centerX, 0, GOLDEN_HOUR[0], 'crackle_fan', undefined, {
-                vx: Math.cos(rad) * speed,
-                vy: Math.sin(rad) * speed
-            }));
+        // --- PHASE 2: BLUE (1500 - 2500) ---
+        // Organic, modern, explosive
+        if (frame >= 1500 && frame < 2400) {
+            // Rapid small mines
+            if (frame % 40 === 0) {
+                rockets.push(new Rocket(rand(0.1, 0.9) * canvas.width, canvas.height * 0.7, randColor(DEEP_BLUE), 'mine'));
+            }
+            // Big organic bursts
+            if (frame % 90 === 0) {
+                rockets.push(new Rocket(rand(0.2, 0.8) * canvas.width, rand(0.15, 0.4) * canvas.height, randColor(DEEP_BLUE), 'peony'));
+            }
         }
 
-        // SINGLE POINT FAN 2 (Right to Left Sweep)
-        const fan2Start = 1050;
-        if (frame >= fan2Start && frame < fan2Start + 25 && frame % 5 === 0) {
-            const idx = (frame - fan2Start) / 5; 
-            const angleDeg = -70 - (idx * 10); 
-            const rad = angleDeg * (Math.PI / 180);
-            const speed = 14;
-            rockets.push(new Rocket(centerX, 0, GOLDEN_HOUR[2], 'crackle_fan', undefined, {
-                vx: Math.cos(rad) * speed,
-                vy: Math.sin(rad) * speed
-            }));
+        // --- PHASE 3: RED (2600 - 3500) ---
+        // Intense, horsetails
+        if (frame >= 2600 && frame < 3500) {
+            if (frame % 100 === 0) {
+                 // Double Horsetails
+                 rockets.push(new Rocket(canvas.width * 0.3, canvas.height * 0.25, randColor(VIBRANT_RED), 'horsetail'));
+                 rockets.push(new Rocket(canvas.width * 0.7, canvas.height * 0.25, randColor(VIBRANT_RED), 'horsetail'));
+            }
+            // Fillers
+            if (frame % 60 === 0) {
+                rockets.push(new Rocket(rand(0.4, 0.6) * canvas.width, canvas.height * 0.5, randColor(VIBRANT_RED), 'peony'));
+            }
         }
 
-        // [1350] HUGE WHITE FINAL
-        if (frame === 1350) {
-            rockets.push(new Rocket(canvas.width * 0.5, canvas.height * 0.25, WHITE_GLITTER, 'finale_white'));
-        }
-
-        // ==========================================
-        //        POST-FINALE SEQUENCE
-        // ==========================================
-
-        const startPostFinale = 1500;
-
-        // 1. 20 WHITE CRACKLE WIPERS
-        if (frame >= startPostFinale && frame < startPostFinale + 100 && frame % 5 === 0) {
-            const step = (frame - startPostFinale) / 5;
-            const sequenceIndex = Math.floor(step / 5); 
-            const shotInSequence = step % 5; 
-
+        // --- PHASE 4: GREEN (3600 - 4500) ---
+        // Wipers (Fächer) - Normal sized rockets
+        if (frame >= 3600 && frame < 4000 && frame % 15 === 0) {
+            const step = (frame - 3600) / 15;
+            const shotInSequence = step % 10; 
+            const sequenceIndex = Math.floor(step / 10); 
             const isLeftToRight = (sequenceIndex % 2 === 0);
             
-            let angleDeg = 0;
-            if (isLeftToRight) {
-                angleDeg = -130 + (shotInSequence * 20); 
-            } else {
-                angleDeg = -50 - (shotInSequence * 20); 
-            }
-
+            let angleDeg = isLeftToRight ? -140 + (shotInSequence * 10) : -40 - (shotInSequence * 10);
             const rad = angleDeg * (Math.PI / 180);
-            const speed = 13;
+            const speed = 11;
             
-            rockets.push(new Rocket(centerX, 0, WHITE_GLITTER, 'wiper_white', undefined, {
+            rockets.push(new Rocket(canvas.width * 0.5, 0, ELECTRIC_GREEN[0], 'wiper_white', undefined, {
                 vx: Math.cos(rad) * speed,
                 vy: Math.sin(rad) * speed
             }));
         }
 
-        // 2. 8 SIMULTANEOUS SMALL MINES (Low Height)
-        if (frame >= startPostFinale && frame < startPostFinale + 120 && frame % 15 === 0) {
-             const xPos = rand(0.2, 0.8) * canvas.width;
-             rockets.push(new Rocket(xPos, canvas.height * 0.75, GOLDEN_HOUR[1], 'mine'));
-        }
+        // --- PHASE 5: KRASS MIX (4600 - 5400) ---
+        // Everything together
+        if (frame >= 4600 && frame < 5400) {
+            if (frame % 20 === 0) {
+                 const x = rand(0.1, 0.9) * canvas.width;
+                 const type = Math.random() > 0.7 ? 'horsetail' : 'peony';
+                 
+                 // Random palette
+                 const p = Math.random();
+                 let col;
+                 if (p < 0.25) col = randColor(GOLDEN_HOUR);
+                 else if (p < 0.5) col = randColor(DEEP_BLUE);
+                 else if (p < 0.75) col = randColor(VIBRANT_RED);
+                 else col = randColor(ELECTRIC_GREEN);
 
-        // 3. FOUNTAIN & ALTERNATING ROCKETS
-        const fountainStart = startPostFinale + 180; 
-        const fountainDuration = 180; 
-
-        if (frame >= fountainStart && frame < fountainStart + fountainDuration) {
-            for(let k=0; k<3; k++) {
-                const angle = -Math.PI / 2 + rand(-0.2, 0.2);
-                const speed = rand(8, 14);
-                const vx = Math.cos(angle) * speed * 0.3; 
-                const vy = Math.sin(angle) * speed;
-                particles.push(new Particle(
-                    canvas.width * 0.5, 
-                    canvas.height, 
-                    vx, vy, 
-                    GOLDEN_HOUR[0].h, 100, 70, 
-                    'fountain'
-                ));
+                 rockets.push(new Rocket(x, rand(0.1, 0.6) * canvas.height, col, type));
             }
         }
 
-        if (frame >= fountainStart && frame < fountainStart + 150 && frame % 15 === 0) {
-            const count = (frame - fountainStart) / 15;
-            const isLeft = count % 2 === 0;
-            const xPos = isLeft ? canvas.width * 0.25 : canvas.width * 0.75;
-            
-            rockets.push(new Rocket(xPos, canvas.height * 0.2, isLeft ? GOLDEN_HOUR[1] : GOLDEN_HOUR[3], 'peony', undefined, {
-                vx: 0, 
-                vy: -18 
-            }));
+        // --- BIG WHITE FINALE (Reduced size) ---
+        if (frame === 5500) {
+             rockets.push(new Rocket(canvas.width * 0.5, canvas.height * 0.3, WHITE_GLITTER, 'finale_white'));
         }
 
+        // --- HAPPY NEW YEAR TEXT FINALE ---
+        const textY = canvas.height * 0.25;
+        
+        // "HAPPY"
+        if (frame === 5700) {
+            rockets.push(new Rocket(canvas.width * 0.2, textY, GOOGLE_BLUE, 'text', 'H'));
+            rockets.push(new Rocket(canvas.width * 0.35, textY, GOOGLE_RED, 'text', 'A'));
+            rockets.push(new Rocket(canvas.width * 0.5, textY, GOOGLE_YELLOW, 'text', 'P'));
+            rockets.push(new Rocket(canvas.width * 0.65, textY, GOOGLE_GREEN, 'text', 'P'));
+            rockets.push(new Rocket(canvas.width * 0.8, textY, GOOGLE_BLUE, 'text', 'Y'));
+        }
+
+        // "NEW"
+        if (frame === 5900) {
+            rockets.push(new Rocket(canvas.width * 0.3, textY + 150, GOOGLE_RED, 'text', 'N'));
+            rockets.push(new Rocket(canvas.width * 0.5, textY + 150, GOOGLE_YELLOW, 'text', 'E'));
+            rockets.push(new Rocket(canvas.width * 0.7, textY + 150, GOOGLE_GREEN, 'text', 'W'));
+        }
+
+        // "YEAR"
+        if (frame === 6100) {
+            rockets.push(new Rocket(canvas.width * 0.25, textY + 300, GOOGLE_BLUE, 'text', 'Y'));
+            rockets.push(new Rocket(canvas.width * 0.42, textY + 300, GOOGLE_RED, 'text', 'E'));
+            rockets.push(new Rocket(canvas.width * 0.58, textY + 300, GOOGLE_YELLOW, 'text', 'A'));
+            rockets.push(new Rocket(canvas.width * 0.75, textY + 300, GOOGLE_GREEN, 'text', 'R'));
+        }
 
         // --- UPDATE & DRAW ---
 
