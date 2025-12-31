@@ -294,46 +294,76 @@ export const FireworksDisplay: React.FC = () => {
 
         // --- CHOREOGRAPHY (60 FPS) ---
         
-        // PHASE 1: OPENER
-        if (frame === 10) fire('palm', COLORS.GOLD.h, 0.5, 0.4);
+        // GLOBAL BACKGROUND FILLER (New: Keeps the sky busy)
+        if (frame > 200 && frame < 2200 && frame % 50 === 0) {
+            // Random low-altitude bursts to fill gaps
+            fire('peony', rand(0, 360), rand(0.1, 0.9), rand(0.5, 0.7));
+        }
+
+        // PHASE 1: OPENER (More layers)
+        if (frame === 10) {
+            fire('palm', COLORS.GOLD.h, 0.5, 0.4);
+            // Flanking shots
+            fire('peony', COLORS.GOLD.h, 0.2, 0.6);
+            fire('peony', COLORS.GOLD.h, 0.8, 0.6);
+        }
         if (frame === 60) {
             fire('peony', COLORS.RED.h, 0.3, 0.3);
             fire('peony', COLORS.BLUE.h, 0.7, 0.3);
+            fire('crossette', COLORS.WHITE.h, 0.5, 0.2); // Added high center
         }
 
-        // PHASE 2: "2026"
+        // PHASE 2: "2026" (Intensified surroundings)
         if (frame === 180) {
             fire('text', COLORS.CYAN.h, 0.35, 0.3, '2');
             setTimeout(() => fire('text', COLORS.CYAN.h, 0.45, 0.3, '0'), 100);
             setTimeout(() => fire('text', COLORS.CYAN.h, 0.55, 0.3, '2'), 200);
             setTimeout(() => fire('text', COLORS.CYAN.h, 0.65, 0.3, '6'), 300);
+            
+            // Celebration bursts around text
+            setTimeout(() => {
+                fire('peony', COLORS.VIOLET.h, 0.2, 0.5);
+                fire('peony', COLORS.VIOLET.h, 0.8, 0.5);
+            }, 500);
         }
 
-        // PHASE 3: RAMP
+        // PHASE 3: RAMP (Double Density)
         if (frame > 400 && frame < 900) {
-            if (frame % 40 === 0) {
+            if (frame % 25 === 0) { // Frequency doubled (was 40)
                 const x = rand(0.1, 0.9);
                 const type = Math.random() > 0.5 ? 'crossette' : 'ghost';
                 fire(type, rand(0, 360), x, rand(0.2, 0.5));
             }
+            if (frame % 35 === 0) { // Secondary layer
+                fire('palm', rand(0, 360), rand(0.1, 0.9), rand(0.3, 0.6));
+            }
         }
 
-        // PHASE 4: MESSAGE
+        // PHASE 4: MESSAGE (With background glitter)
         if (frame === 950) {
             ['H','A','P','P','Y'].forEach((char, i) => fire('text', COLORS.ORANGE.h, 0.2 + (i * 0.15), 0.2, char));
+            // Underlighting
+            fire('willow', COLORS.GOLD.h, 0.1, 0.6);
+            fire('willow', COLORS.GOLD.h, 0.9, 0.6);
         }
         if (frame === 1100) {
             ['N','E','W'].forEach((char, i) => fire('text', COLORS.WHITE.h, 0.35 + (i * 0.15), 0.35, char));
         }
         if (frame === 1250) {
             ['Y','E','A','R'].forEach((char, i) => fire('text', COLORS.GOLD.h, 0.25 + (i * 0.16), 0.5, char));
+             // Massive side bursts
+             fire('peony', COLORS.RED.h, 0.1, 0.4);
+             fire('peony', COLORS.RED.h, 0.9, 0.4);
         }
 
-        // PHASE 5: GRAND FINALE
+        // PHASE 5: GRAND FINALE (Wall of Fire)
         if (frame === 1500) {
             fire('willow', COLORS.GOLD.h, 0.2, 0.25);
             fire('willow', COLORS.GOLD.h, 0.5, 0.15);
             fire('willow', COLORS.GOLD.h, 0.8, 0.25);
+            // Lower fill
+            fire('peony', COLORS.BLUE.h, 0.35, 0.5);
+            fire('peony', COLORS.BLUE.h, 0.65, 0.5);
         }
 
         if (frame === 1700) {
@@ -341,26 +371,33 @@ export const FireworksDisplay: React.FC = () => {
             setTimeout(() => {
                 ['Y','O','U'].forEach((c, i) => fire('text', COLORS.BLUE.h, 0.4 + (i*0.12), 0.5, c));
             }, 500);
+            
+            // Continuous rain
+            for(let i=0; i<5; i++) {
+                setTimeout(() => fire('willow', COLORS.GOLD.h, rand(0.1, 0.9), rand(0.1, 0.3)), i * 200);
+            }
         }
 
-        // Phase 6: THE EXTENDED FINALE (Added as requested)
-        // A furious mix of colors before the silence
+        // Phase 6: THE EXTENDED FINALE (Extreme Intensity)
         if (frame > 2000 && frame < 2250) {
-            if (frame % 15 === 0) {
+            if (frame % 8 === 0) { // Extremely high frequency
                 const hue = rand(0, 360);
-                const x = rand(0.2, 0.8);
-                const y = rand(0.2, 0.5);
+                const x = rand(0.1, 0.9);
+                const y = rand(0.1, 0.5);
                 fire('peony', hue, x, y);
             }
-            if (frame % 45 === 0) {
-                fire('willow', COLORS.GOLD.h, rand(0.1, 0.9), rand(0.2, 0.4));
+            if (frame % 20 === 0) {
+                fire('ring', rand(0, 360), rand(0.2, 0.8), rand(0.2, 0.4));
             }
         }
 
         // TEXT OVERLAYS TRIGGERS
-        if (frame === 2400) setShowCredit(true); // "Made with Gemini"
-        if (frame === 2800) setShowCredit(false); // Fade out
-        if (frame === 2900) setShowFinaleText(true); // "See you in 2025"
+        // Made with Gemini: Shorter duration (200 frames -> ~3s)
+        if (frame === 2400) setShowCredit(true); 
+        if (frame === 2600) setShowCredit(false); 
+        
+        // Final text
+        if (frame === 2850) setShowFinaleText(true); 
 
         frame++;
         requestAnimationFrame(loop);
@@ -379,13 +416,14 @@ export const FireworksDisplay: React.FC = () => {
             <AnimatePresence>
                 {showCredit && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
+                        initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.1, filter: 'blur(10px)' }}
-                        transition={{ duration: 1 }}
+                        exit={{ opacity: 0, scale: 1.05, filter: 'blur(8px)' }}
+                        transition={{ duration: 0.8, ease: "easeInOut" }}
                         className="text-center"
                     >
-                         <h2 className="text-3xl md:text-5xl font-medium text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                         {/* Clean, simple, professional font style */}
+                         <h2 className="text-2xl md:text-3xl font-light text-slate-200 tracking-wide" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                             Made with Gemini
                          </h2>
                     </motion.div>
