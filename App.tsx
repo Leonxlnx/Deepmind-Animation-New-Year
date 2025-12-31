@@ -47,34 +47,36 @@ export default function App() {
   const handleLightsOut = () => {
     setIsDark(true);
     
-    // Trigger "Ready?" text sequence with delay
-    // User requested "1 second later"
+    // Smooth cinematic sequence
     setTimeout(() => {
         setShowReady(true);
-        // Hide "Ready?" after a delay and start fireworks
+        
         setTimeout(() => {
             setShowReady(false);
-            setStartFireworks(true);
-        }, 2000); 
-    }, 2200); // 1s + animation buffer
+            // Slight pause before the bang
+            setTimeout(() => {
+                setStartFireworks(true);
+            }, 500);
+        }, 2500); 
+    }, 1500); 
   };
 
   return (
     <motion.main 
-      className="relative h-screen w-screen overflow-hidden flex flex-col items-center justify-center select-none transition-colors duration-700 ease-in-out"
-      animate={{ backgroundColor: isDark ? '#050505' : '#F8F9FA' }}
+      className="relative h-screen w-screen overflow-hidden flex flex-col items-center justify-center select-none transition-colors duration-1000 ease-in-out"
+      animate={{ backgroundColor: isDark ? '#000000' : '#F8F9FA' }}
     >
       
       {/* Background Ambience (Persistent) */}
       <div className="absolute inset-0 z-0">
-        <div className={`transition-opacity duration-1000 ${isDark ? 'opacity-20' : 'opacity-100'}`}>
+        <div className={`transition-opacity duration-1000 ${isDark ? 'opacity-10' : 'opacity-100'}`}>
             <SnowParticles />
         </div>
         <motion.div 
             className="absolute inset-0 pointer-events-none"
             animate={{ 
                 background: isDark 
-                    ? 'linear-gradient(to bottom, #000000 0%, #111111 100%)' 
+                    ? 'linear-gradient(to bottom, #000000 0%, #050505 100%)' 
                     : 'linear-gradient(to bottom, rgba(255,255,255,0.4) 0%, transparent 50%, rgba(59,130,246,0.1) 100%)'
             }}
         />
@@ -138,26 +140,21 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* "Ready?" Dotted Text - Appears after dark - MOVED HIGHER */}
+      {/* "Ready?" Cinematic Text */}
       <AnimatePresence>
         {showReady && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, filter: "blur(8px)" }}
-            transition={{ duration: 0.8 }}
-            className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none pb-32" 
+            initial={{ opacity: 0, scale: 0.8, filter: "blur(20px)" }}
+            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+            exit={{ opacity: 0, scale: 1.2, filter: "blur(10px)" }}
+            transition={{ duration: 1.2, ease: "easeInOut" }}
+            className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none" 
           >
              <h1 
-                className="text-6xl md:text-8xl font-bold tracking-widest text-center"
+                className="text-7xl md:text-9xl font-bold tracking-tighter text-center text-white mix-blend-screen"
                 style={{ 
                     fontFamily: "'Space Grotesk', sans-serif",
-                    color: 'transparent',
-                    // Creates a dotted matrix effect
-                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.9) 1.5px, transparent 2px)',
-                    backgroundSize: '5px 5px',
-                    WebkitBackgroundClip: 'text',
-                    backgroundClip: 'text'
+                    textShadow: "0 0 40px rgba(255,255,255,0.5)"
                 }}
              >
                 READY?

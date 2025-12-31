@@ -1,94 +1,85 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // --- CONFIGURATION ---
-const PHYSICS = {
-    friction: 0.95, // Increased air resistance for "pop then stop" effect
-    gravity: 0.04,  
+const CONFIG = {
+    GRAVITY: 0.08,         // Earth-like gravity pull
+    DRAG: 0.96,            // Air resistance (critical for realism)
+    TRAIL_LENGTH: 5,       // How many frames of history to keep for trails
+    EXPLOSION_FORCE: 5,    // Base force of bursts
+    TEXT_SIZE: 140,        // Font size for sampling
+    PARTICLE_DENSITY: 4,   // Lower = more particles for text
+    DPI: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1,
 };
 
-// --- PALETTES ---
-const GOLDEN_HOUR = [
-    { h: 45, s: 100, l: 50 },
-    { h: 38, s: 100, l: 60 },
-    { h: 28, s: 100, l: 65 },
-];
+// --- PALETTE (Noble Gases & Metals) ---
+const COLORS = {
+    GOLD: { h: 42, s: 100, l: 50 },     // Sodium
+    RED: { h: 350, s: 100, l: 60 },     // Strontium
+    GREEN: { h: 130, s: 100, l: 60 },   // Barium
+    BLUE: { h: 210, s: 100, l: 60 },    // Copper
+    VIOLET: { h: 280, s: 100, l: 60 },  // Potassium
+    WHITE: { h: 0, s: 0, l: 100 },      // Magnesium (Blinding)
+    CYAN: { h: 180, s: 100, l: 60 },
+    ORANGE: { h: 25, s: 100, l: 60 }
+};
 
-const DEEP_BLUE = [
-    { h: 220, s: 90, l: 60 },
-    { h: 200, s: 100, l: 60 },
-    { h: 240, s: 80, l: 70 },
-];
-
-const VIBRANT_RED = [
-    { h: 350, s: 90, l: 55 },
-    { h: 10, s: 100, l: 60 },
-    { h: 330, s: 100, l: 50 },
-];
-
-const ELECTRIC_GREEN = [
-    { h: 140, s: 100, l: 50 },
-    { h: 120, s: 90, l: 60 },
-    { h: 160, s: 100, l: 60 },
-];
-
-const WHITE_GLITTER = { h: 0, s: 0, l: 100 };
-
-// GOOGLE BRAND COLORS (for text)
-const GOOGLE_BLUE = { h: 217, s: 89, l: 61 };
-const GOOGLE_RED = { h: 5, s: 81, l: 56 };
-const GOOGLE_YELLOW = { h: 45, s: 96, l: 51 };
-const GOOGLE_GREEN = { h: 138, s: 58, l: 45 };
-
-type RocketType = 'peony' | 'text' | 'horsetail' | 'mine' | 'crackle_fan' | 'finale_white' | 'wiper_white';
-type ParticleBehavior = 'normal' | 'heavy' | 'glitter' | 'text' | 'fountain' | 'trail';
+// --- TYPES ---
+type Vector = { x: number; y: number };
+type ShellType = 'peony' | 'willow' | 'crossette' | 'ghost' | 'text' | 'ring' | 'palm';
 
 export const FireworksDisplay: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [showCredit, setShowCredit] = useState(false);
+  const [showFinaleText, setShowFinaleText] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d', { alpha: true });
+    const ctx = canvas.getContext('2d', { alpha: false }); // False for manual clearing control
     if (!ctx) return;
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    // --- HIGH DPI SETUP ---
+    const setupCanvas = () => {
+        canvas.width = window.innerWidth * CONFIG.DPI;
+        canvas.height = window.innerHeight * CONFIG.DPI;
+        canvas.style.width = `${window.innerWidth}px`;
+        canvas.style.height = `${window.innerHeight}px`;
+        ctx.scale(CONFIG.DPI, CONFIG.DPI);
+    };
+    window.addEventListener('resize', setupCanvas);
+    setupCanvas();
 
-    // --- UTILS ---
+    // --- HELPERS ---
     const rand = (min: number, max: number) => Math.random() * (max - min) + min;
-    const randColor = (palette: {h:number, s:number, l:number}[]) => palette[Math.floor(Math.random() * palette.length)];
+    
+    // --- TEXT SAMPLING ENGINE ---
+    const getTextPoints = (text: string): Vector[] => {
+        const osc = document.createElement('canvas');
+        const osctx = osc.getContext('2d');
+        if (!osctx) return [];
 
-    // --- TEXT BITMAP GENERATOR ---
-    const getTextParticleCoordinates = (text: string, fontSize: number = 160): {x: number, y: number}[] => {
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-        if (!tempCtx) return [];
+        const size = CONFIG.TEXT_SIZE;
+        osc.width = size * text.length * 1.5; // Enough width
+        osc.height = size * 1.5;
 
-        // Smaller font for longer words
-        const isMobile = window.innerWidth < 768;
-        const actualFontSize = isMobile ? fontSize * 0.5 : fontSize;
+        osctx.font = `900 ${size}px "Space Grotesk", sans-serif`;
+        osctx.textAlign = 'center';
+        osctx.textBaseline = 'middle';
+        osctx.fillStyle = 'white';
+        osctx.fillText(text, osc.width / 2, osc.height / 2);
 
-        tempCanvas.width = actualFontSize * text.length * 1.2;
-        tempCanvas.height = actualFontSize * 2;
+        const data = osctx.getImageData(0, 0, osc.width, osc.height).data;
+        const points: Vector[] = [];
         
-        tempCtx.font = `900 ${actualFontSize}px "Space Grotesk", sans-serif`;
-        tempCtx.fillStyle = 'white';
-        tempCtx.textAlign = 'center';
-        tempCtx.textBaseline = 'middle';
-        tempCtx.fillText(text, tempCanvas.width / 2, tempCanvas.height / 2);
-
-        const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-        const data = imageData.data;
-        const points: {x: number, y: number}[] = [];
-        const step = 5; 
-
-        for (let y = 0; y < tempCanvas.height; y += step) {
-            for (let x = 0; x < tempCanvas.width; x += step) {
-                if (data[(y * tempCanvas.width + x) * 4 + 3] > 128) {
+        // Scan grid
+        for (let y = 0; y < osc.height; y += CONFIG.PARTICLE_DENSITY) {
+            for (let x = 0; x < osc.width; x += CONFIG.PARTICLE_DENSITY) {
+                if (data[(y * osc.width + x) * 4 + 3] > 128) {
                     points.push({
-                        x: x - tempCanvas.width / 2,
-                        y: y - tempCanvas.height / 2
+                        x: (x - osc.width / 2) * (window.innerWidth < 768 ? 0.8 : 1.5), // Scale for screen
+                        y: (y - osc.height / 2) * (window.innerWidth < 768 ? 0.8 : 1.5)
                     });
                 }
             }
@@ -96,446 +87,324 @@ export const FireworksDisplay: React.FC = () => {
         return points;
     };
 
-    // --- PHYSICS CLASSES ---
-
+    // --- CLASS: PARTICLE ---
     class Particle {
         x: number;
         y: number;
-        prevX: number;
-        prevY: number;
         vx: number;
         vy: number;
-        alpha: number;
+        history: Vector[];
         hue: number;
-        sat: number;
-        light: number;
+        sat: number = 100;
+        lit: number;
+        alpha: number = 1;
         decay: number;
-        size: number;
-        behavior: ParticleBehavior;
-
-        constructor(x: number, y: number, vx: number, vy: number, hue: number, sat: number, light: number, behavior: ParticleBehavior = 'normal') {
+        type: ShellType;
+        
+        constructor(x: number, y: number, hue: number, type: ShellType, targetVelocity?: Vector) {
             this.x = x;
             this.y = y;
-            this.prevX = x;
-            this.prevY = y;
-            this.vx = vx;
-            this.vy = vy;
+            this.history = [];
             this.hue = hue;
-            this.sat = sat;
-            this.light = light;
-            this.behavior = behavior;
-            this.alpha = 1;
-            
-            this.size = behavior === 'glitter' ? rand(1, 2.5) : rand(1, 2.5);
+            this.type = type;
 
-            // DECAY LOGIC - CUSTOMIZED
-            if (this.behavior === 'heavy') {
-                // Pferdeschwanz: Schneller vergehen als vorher (was 0.0015)
-                this.decay = rand(0.005, 0.008); 
-            } else if (this.behavior === 'glitter') {
-                this.decay = rand(0.006, 0.012);
-            } else if (this.behavior === 'text') {
-                this.decay = rand(0.008, 0.015); 
-            } else if (this.behavior === 'fountain') {
-                this.decay = rand(0.015, 0.025);
-            } else if (this.behavior === 'trail') {
-                this.decay = rand(0.04, 0.08); 
-                this.size = rand(0.5, 1.2);    
+            // Physics Init
+            if (targetVelocity) {
+                // TEXT MODE: Velocity is pre-calculated to expand into shape
+                this.vx = targetVelocity.x;
+                this.vy = targetVelocity.y;
+                this.decay = rand(0.008, 0.02); // Text burns slightly longer
+                this.lit = 80; // Bright
             } else {
-                // Standard Explosion
-                this.decay = rand(0.01, 0.02); 
+                // EXPLOSION MODE
+                const angle = rand(0, Math.PI * 2);
+                const speed = rand(1, CONFIG.EXPLOSION_FORCE * (type === 'willow' ? 0.6 : 1.0));
+                
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                
+                // Ring Logic override
+                if (type === 'ring') {
+                    this.vx = Math.cos(angle) * (CONFIG.EXPLOSION_FORCE * 1.5);
+                    this.vy = Math.sin(angle) * (CONFIG.EXPLOSION_FORCE * 1.5) * 0.4; // Flattened 3D ring
+                }
+
+                this.decay = rand(0.015, 0.035);
+                this.lit = rand(50, 80);
+            }
+
+            // Willow/Palm Special
+            if (type === 'willow') {
+                this.decay = rand(0.005, 0.015);
+                this.lit = 50;
+                this.sat = 20; // Pale gold
             }
         }
 
         update() {
-            this.prevX = this.x;
-            this.prevY = this.y;
-            
-            if (this.behavior === 'heavy') {
-                this.vx *= 0.92; 
-                this.vy *= 0.92; 
-                this.vy += 0.04; // Gravity for falling sparks
-            } else if (this.behavior === 'text') {
-                 this.vx *= 0.90;
-                 this.vy *= 0.90;
-            } else if (this.behavior === 'trail') {
-                 this.vx *= 0.5; 
-                 this.vy *= 0.5;
-                 this.vy += 0.01; 
-            } else {
-                this.vx *= PHYSICS.friction;
-                this.vy *= PHYSICS.friction;
-                this.vy += PHYSICS.gravity;
-            }
-            
+            // Physics
             this.x += this.vx;
             this.y += this.vy;
-            this.alpha -= this.decay;
-            
-            if (this.alpha < 0.2) this.size *= 0.9;
+            this.vx *= CONFIG.DRAG;
+            this.vy *= CONFIG.DRAG;
+            this.vy += CONFIG.GRAVITY;
 
-            // Sparkle logic
-            if (this.behavior === 'glitter') {
-                if (Math.random() > 0.8) { 
-                    this.light = 100; 
-                    this.alpha = 1;
-                } else {
-                    this.light = 60; 
-                }
-            }
+            // Decay
+            this.alpha -= this.decay;
+            if (this.type === 'ghost') this.hue += 1; // Color shift
+
+            // History for Trails
+            this.history.push({ x: this.x, y: this.y });
+            if (this.history.length > CONFIG.TRAIL_LENGTH) this.history.shift();
         }
 
-        draw(ctx: CanvasRenderingContext2D) {
-            if (this.alpha <= 0) return;
+        draw() {
+            if (this.alpha <= 0 || this.history.length < 2) return;
 
-            ctx.save();
-            ctx.globalAlpha = this.alpha;
-            
             ctx.beginPath();
-            ctx.strokeStyle = `hsl(${this.hue}, ${this.sat}%, ${this.light}%)`;
-            ctx.lineWidth = this.size;
-            ctx.lineCap = 'round';
-            ctx.moveTo(this.prevX, this.prevY);
-            ctx.lineTo(this.x, this.y);
-            ctx.stroke();
+            ctx.moveTo(this.history[0].x, this.history[0].y);
+            for (const point of this.history) {
+                ctx.lineTo(point.x, point.y);
+            }
             
-            ctx.restore();
+            ctx.lineCap = 'round';
+            // Willow trails are thicker
+            ctx.lineWidth = this.type === 'willow' ? 1.5 : (this.type === 'text' ? 2 : 1.5);
+            ctx.strokeStyle = `hsla(${this.hue}, ${this.sat}%, ${this.lit}%, ${this.alpha})`;
+            ctx.stroke();
         }
     }
 
+    // --- CLASS: ROCKET ---
     class Rocket {
         x: number;
         y: number;
         targetY: number;
-        vy: number;
         vx: number;
+        vy: number;
         hue: number;
-        sat: number;
-        light: number;
-        exploded: boolean;
-        type: RocketType;
-        textChar?: string;
-        
-        constructor(x: number, targetY: number, color: {h: number, s: number, l: number}, type: RocketType = 'peony', textChar?: string, velocityOverride?: {vx: number, vy: number}) {
-            this.x = x;
-            this.y = canvas!.height;
-            this.targetY = targetY;
-            this.hue = color.h;
-            this.sat = color.s;
-            this.light = color.l;
+        type: ShellType;
+        char?: string;
+        dead = false;
+
+        constructor(xPerc: number, yPerc: number, hue: number, type: ShellType, char?: string) {
+            this.x = window.innerWidth * xPerc;
+            this.y = window.innerHeight;
+            this.targetY = window.innerHeight * yPerc;
+            this.hue = hue;
             this.type = type;
-            this.textChar = textChar;
-            this.exploded = false;
-            
-            if (velocityOverride) {
-                this.vx = velocityOverride.vx;
-                this.vy = velocityOverride.vy;
-            } else {
-                const height = canvas!.height - targetY;
-                // Fast launch
-                let speed = -Math.sqrt(2 * 0.22 * height); 
-                
-                if (type === 'mine') speed = -15; 
-                
-                this.vy = speed;
-                this.vx = rand(-0.3, 0.3); 
-            }
+            this.char = char;
+
+            // Physics: Calculate velocity to reach exact height (v^2 = u^2 + 2as)
+            const height = this.y - this.targetY;
+            this.vy = -Math.sqrt(2 * (CONFIG.GRAVITY + 0.05) * height) * 1.05; // 1.05 boost to fight drag
+            this.vx = (Math.random() - 0.5) * 1.5; // Slight drift
         }
 
         update() {
-            this.vy += 0.22;
             this.x += this.vx;
             this.y += this.vy;
+            this.vy += CONFIG.GRAVITY;
+            this.vx *= 0.99; // Air resistance on rocket body
 
-            // Clean Trail
-            if (this.type !== 'mine' && this.type !== 'text') { 
-                const t = new Particle(
-                    this.x, 
-                    this.y, 
-                    rand(-0.2, 0.2), 
-                    rand(0.5, 1.0), 
-                    this.hue, 
-                    this.sat, 
-                    this.light, 
-                    'trail'
-                );
-                particles.push(t);
+            // Trail
+            if (Math.random() > 0.6) {
+                particles.push(new Particle(this.x, this.y, 45, 'willow')); // Gold dust trail
             }
 
-            const reachedTarget = this.vy >= -0.5 || this.y <= this.targetY;
-            
-            if (reachedTarget || this.y < -50) {
+            // Explode condition (Apex or passed target)
+            if (this.vy >= -1 || this.y <= this.targetY) {
+                this.dead = true;
                 this.explode();
             }
         }
 
-        draw(ctx: CanvasRenderingContext2D) {
-            if (this.type === 'mine') return; 
-
-            // HEAD: Tiny
-            ctx.fillStyle = `hsl(${this.hue}, ${this.sat}%, 90%)`;
+        draw() {
+            ctx.fillStyle = `hsl(${this.hue}, 100%, 80%)`;
             ctx.beginPath();
-            ctx.arc(this.x, this.y, 1.5, 0, Math.PI * 2); 
+            ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
             ctx.fill();
         }
 
         explode() {
-            this.exploded = true;
-            let count = 0;
-            let power = 0;
-            let behavior: ParticleBehavior = 'normal';
+            // --- TEXT EXPLOSION LOGIC ---
+            if (this.type === 'text' && this.char) {
+                const points = getTextPoints(this.char);
+                
+                // Realism Hack: Flash bang first
+                for (let i = 0; i < 20; i++) {
+                    const p = new Particle(this.x, this.y, COLORS.WHITE.h, 'peony');
+                    p.vx *= 3; p.vy *= 3; // Fast flash
+                    p.decay = 0.1;
+                    particles.push(p);
+                }
 
-            switch (this.type) {
-                case 'peony':
-                    // "Explosionsartig" -> Higher power
-                    count = 90; 
-                    power = rand(6, 11); 
-                    behavior = 'normal';
-                    break;
-                case 'horsetail':
-                    count = 150;
-                    power = rand(5, 9); // Explosive start, then falls
-                    behavior = 'heavy'; 
-                    break;
-                case 'mine':
-                    count = 40;
-                    power = rand(4, 8); 
-                    behavior = 'normal';
-                    break;
-                case 'wiper_white':
-                    // "Normal groß wie rakete"
-                    count = 80;
-                    power = rand(5, 9); 
-                    behavior = 'glitter';
-                    break;
-                case 'crackle_fan':
-                    count = 60;
-                    power = rand(5, 8);
-                    behavior = 'glitter';
-                    break;
-                case 'finale_white':
-                    // "Weiße große explosion kleiner"
-                    count = 250; 
-                    power = 10; // Was 16/18
-                    behavior = 'glitter';
-                    break;
-                case 'text':
-                    behavior = 'text';
-                    break;
-            }
-
-            if (this.type === 'text' && this.textChar) {
-                const points = getTextParticleCoordinates(this.textChar);
-                points.forEach(p => {
-                    const vx = p.x * 0.05 + rand(-0.1, 0.1);
-                    const vy = p.y * 0.05 + rand(-0.1, 0.1);
-                    particles.push(new Particle(this.x, this.y, vx, vy, this.hue, this.sat, this.light, behavior));
+                // Create Shape
+                points.forEach(pt => {
+                    const velX = pt.x * 0.06; 
+                    const velY = pt.y * 0.06;
+                    
+                    const p = new Particle(this.x, this.y, this.hue, 'text', { x: velX, y: velY });
+                    particles.push(p);
                 });
                 return;
             }
 
-            // STANDARD EXPLOSIONS
+            // --- STANDARD EXPLOSION LOGIC ---
+            const count = this.type === 'ghost' || this.type === 'ring' ? 100 : 200;
+            
             for (let i = 0; i < count; i++) {
-                let a = rand(0, Math.PI * 2); 
-                // Power distribution for more natural explosion
-                let s = Math.pow(Math.random(), 0.5) * power; 
-                
-                let vx = Math.cos(a) * s;
-                let vy = Math.sin(a) * s;
-
-                if (this.type === 'horsetail') {
-                    // Slight upward bias
-                    a = rand(Math.PI * 1.1, Math.PI * 1.9); 
-                    s = rand(3, 8);
-                    vx = Math.cos(a) * s;
-                    vy = Math.sin(a) * s;
-                }
-                
-                if (this.type === 'mine') {
-                    a = rand(Math.PI * 1.1, Math.PI * 1.9);
-                    s = rand(6, 12);
-                    vx = Math.cos(a) * s;
-                    vy = Math.sin(a) * s;
-                }
-
-                // Color Variety within palette
-                let h = this.hue;
-                let sat = this.sat;
-                let l = this.light;
-                
-                // Variate slightly around the base color for depth
-                h += rand(-10, 10);
-
-                particles.push(new Particle(this.x, this.y, vx, vy, h, sat, l, behavior));
+                if (this.type === 'crossette' && i % 5 !== 0) continue; 
+                const p = new Particle(this.x, this.y, this.hue, this.type);
+                particles.push(p);
             }
         }
     }
 
+    // --- STATE & LOOP ---
     let rockets: Rocket[] = [];
     let particles: Particle[] = [];
     let frame = 0;
 
-    const animate = () => {
-        // --- 1. Clear Screen ---
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'; 
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // --- 2. Switch to Additive Blending ---
-        ctx.globalCompositeOperation = 'lighter';
-
-        // ==========================================
-        //               TIMELINE
-        // ==========================================
-        
-        // --- PHASE 1: GOLD (0 - 1400) ---
-        if (frame === 20) rockets.push(new Rocket(canvas.width * 0.5, canvas.height * 0.35, GOLDEN_HOUR[0], 'peony'));
-        
-        if (frame > 100 && frame < 800 && frame % 120 === 0) {
-             const x = rand(0.2, 0.8) * canvas.width;
-             const y = rand(0.2, 0.5) * canvas.height;
-             rockets.push(new Rocket(x, y, randColor(GOLDEN_HOUR), 'peony'));
-        }
-
-        // 2026
-        if (frame === 900) {
-            rockets.push(new Rocket(canvas.width * 0.2, canvas.height * 0.4, GOLDEN_HOUR[0], 'text', '2'));   
-            rockets.push(new Rocket(canvas.width * 0.4, canvas.height * 0.4, GOLDEN_HOUR[1], 'text', '0'));  
-            rockets.push(new Rocket(canvas.width * 0.6, canvas.height * 0.4, GOLDEN_HOUR[2], 'text', '2')); 
-            rockets.push(new Rocket(canvas.width * 0.8, canvas.height * 0.4, GOLDEN_HOUR[0], 'text', '6')); 
-        }
-
-        // --- PHASE 2: BLUE (1500 - 2500) ---
-        // Organic, modern, explosive
-        if (frame >= 1500 && frame < 2400) {
-            // Rapid small mines
-            if (frame % 40 === 0) {
-                rockets.push(new Rocket(rand(0.1, 0.9) * canvas.width, canvas.height * 0.7, randColor(DEEP_BLUE), 'mine'));
-            }
-            // Big organic bursts
-            if (frame % 90 === 0) {
-                rockets.push(new Rocket(rand(0.2, 0.8) * canvas.width, rand(0.15, 0.4) * canvas.height, randColor(DEEP_BLUE), 'peony'));
-            }
-        }
-
-        // --- PHASE 3: RED (2600 - 3500) ---
-        // Intense, horsetails
-        if (frame >= 2600 && frame < 3500) {
-            if (frame % 100 === 0) {
-                 // Double Horsetails
-                 rockets.push(new Rocket(canvas.width * 0.3, canvas.height * 0.25, randColor(VIBRANT_RED), 'horsetail'));
-                 rockets.push(new Rocket(canvas.width * 0.7, canvas.height * 0.25, randColor(VIBRANT_RED), 'horsetail'));
-            }
-            // Fillers
-            if (frame % 60 === 0) {
-                rockets.push(new Rocket(rand(0.4, 0.6) * canvas.width, canvas.height * 0.5, randColor(VIBRANT_RED), 'peony'));
-            }
-        }
-
-        // --- PHASE 4: GREEN (3600 - 4500) ---
-        // Wipers (Fächer) - Normal sized rockets
-        if (frame >= 3600 && frame < 4000 && frame % 15 === 0) {
-            const step = (frame - 3600) / 15;
-            const shotInSequence = step % 10; 
-            const sequenceIndex = Math.floor(step / 10); 
-            const isLeftToRight = (sequenceIndex % 2 === 0);
-            
-            let angleDeg = isLeftToRight ? -140 + (shotInSequence * 10) : -40 - (shotInSequence * 10);
-            const rad = angleDeg * (Math.PI / 180);
-            const speed = 11;
-            
-            rockets.push(new Rocket(canvas.width * 0.5, 0, ELECTRIC_GREEN[0], 'wiper_white', undefined, {
-                vx: Math.cos(rad) * speed,
-                vy: Math.sin(rad) * speed
-            }));
-        }
-
-        // --- PHASE 5: KRASS MIX (4600 - 5400) ---
-        // Everything together
-        if (frame >= 4600 && frame < 5400) {
-            if (frame % 20 === 0) {
-                 const x = rand(0.1, 0.9) * canvas.width;
-                 const type = Math.random() > 0.7 ? 'horsetail' : 'peony';
-                 
-                 // Random palette
-                 const p = Math.random();
-                 let col;
-                 if (p < 0.25) col = randColor(GOLDEN_HOUR);
-                 else if (p < 0.5) col = randColor(DEEP_BLUE);
-                 else if (p < 0.75) col = randColor(VIBRANT_RED);
-                 else col = randColor(ELECTRIC_GREEN);
-
-                 rockets.push(new Rocket(x, rand(0.1, 0.6) * canvas.height, col, type));
-            }
-        }
-
-        // --- BIG WHITE FINALE (Reduced size) ---
-        if (frame === 5500) {
-             rockets.push(new Rocket(canvas.width * 0.5, canvas.height * 0.3, WHITE_GLITTER, 'finale_white'));
-        }
-
-        // --- HAPPY NEW YEAR TEXT FINALE ---
-        const textY = canvas.height * 0.25;
-        
-        // "HAPPY"
-        if (frame === 5700) {
-            rockets.push(new Rocket(canvas.width * 0.2, textY, GOOGLE_BLUE, 'text', 'H'));
-            rockets.push(new Rocket(canvas.width * 0.35, textY, GOOGLE_RED, 'text', 'A'));
-            rockets.push(new Rocket(canvas.width * 0.5, textY, GOOGLE_YELLOW, 'text', 'P'));
-            rockets.push(new Rocket(canvas.width * 0.65, textY, GOOGLE_GREEN, 'text', 'P'));
-            rockets.push(new Rocket(canvas.width * 0.8, textY, GOOGLE_BLUE, 'text', 'Y'));
-        }
-
-        // "NEW"
-        if (frame === 5900) {
-            rockets.push(new Rocket(canvas.width * 0.3, textY + 150, GOOGLE_RED, 'text', 'N'));
-            rockets.push(new Rocket(canvas.width * 0.5, textY + 150, GOOGLE_YELLOW, 'text', 'E'));
-            rockets.push(new Rocket(canvas.width * 0.7, textY + 150, GOOGLE_GREEN, 'text', 'W'));
-        }
-
-        // "YEAR"
-        if (frame === 6100) {
-            rockets.push(new Rocket(canvas.width * 0.25, textY + 300, GOOGLE_BLUE, 'text', 'Y'));
-            rockets.push(new Rocket(canvas.width * 0.42, textY + 300, GOOGLE_RED, 'text', 'E'));
-            rockets.push(new Rocket(canvas.width * 0.58, textY + 300, GOOGLE_YELLOW, 'text', 'A'));
-            rockets.push(new Rocket(canvas.width * 0.75, textY + 300, GOOGLE_GREEN, 'text', 'R'));
-        }
-
-        // --- UPDATE & DRAW ---
-
-        for (let i = rockets.length - 1; i >= 0; i--) {
-            rockets[i].update();
-            if (rockets[i].exploded) {
-                rockets.splice(i, 1);
-            } else {
-                rockets[i].draw(ctx);
-            }
-        }
-
-        for (let i = particles.length - 1; i >= 0; i--) {
-            particles[i].update();
-            if (particles[i].alpha <= 0.05) { 
-                particles.splice(i, 1);
-            } else {
-                particles[i].draw(ctx);
-            }
-        }
-
-        frame++;
-        requestAnimationFrame(animate);
+    const fire = (type: ShellType, hue: number, x: number, y: number, char?: string) => {
+        rockets.push(new Rocket(x, y, hue, type, char));
     };
 
-    const raf = requestAnimationFrame(animate);
+    const loop = () => {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
 
-    return () => {
-        cancelAnimationFrame(raf);
-    }
+        // 1. Clear with Trail effect
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'; 
+        ctx.fillRect(0, 0, width, height);
+
+        // 2. Logic
+        rockets.forEach(r => r.update());
+        particles.forEach(p => p.update());
+
+        // 3. Render
+        ctx.globalCompositeOperation = 'lighter';
+        rockets.forEach(r => r.draw());
+        particles.forEach(p => p.draw());
+        ctx.globalCompositeOperation = 'source-over'; 
+
+        // 4. Cleanup
+        rockets = rockets.filter(r => !r.dead);
+        particles = particles.filter(p => p.alpha > 0);
+
+        // --- CHOREOGRAPHY (60 FPS) ---
+        
+        // PHASE 1: OPENER
+        if (frame === 10) fire('palm', COLORS.GOLD.h, 0.5, 0.4);
+        if (frame === 60) {
+            fire('peony', COLORS.RED.h, 0.3, 0.3);
+            fire('peony', COLORS.BLUE.h, 0.7, 0.3);
+        }
+
+        // PHASE 2: "2026"
+        if (frame === 180) {
+            fire('text', COLORS.CYAN.h, 0.35, 0.3, '2');
+            setTimeout(() => fire('text', COLORS.CYAN.h, 0.45, 0.3, '0'), 100);
+            setTimeout(() => fire('text', COLORS.CYAN.h, 0.55, 0.3, '2'), 200);
+            setTimeout(() => fire('text', COLORS.CYAN.h, 0.65, 0.3, '6'), 300);
+        }
+
+        // PHASE 3: RAMP
+        if (frame > 400 && frame < 900) {
+            if (frame % 40 === 0) {
+                const x = rand(0.1, 0.9);
+                const type = Math.random() > 0.5 ? 'crossette' : 'ghost';
+                fire(type, rand(0, 360), x, rand(0.2, 0.5));
+            }
+        }
+
+        // PHASE 4: MESSAGE
+        if (frame === 950) {
+            ['H','A','P','P','Y'].forEach((char, i) => fire('text', COLORS.ORANGE.h, 0.2 + (i * 0.15), 0.2, char));
+        }
+        if (frame === 1100) {
+            ['N','E','W'].forEach((char, i) => fire('text', COLORS.WHITE.h, 0.35 + (i * 0.15), 0.35, char));
+        }
+        if (frame === 1250) {
+            ['Y','E','A','R'].forEach((char, i) => fire('text', COLORS.GOLD.h, 0.25 + (i * 0.16), 0.5, char));
+        }
+
+        // PHASE 5: GRAND FINALE
+        if (frame === 1500) {
+            fire('willow', COLORS.GOLD.h, 0.2, 0.25);
+            fire('willow', COLORS.GOLD.h, 0.5, 0.15);
+            fire('willow', COLORS.GOLD.h, 0.8, 0.25);
+        }
+
+        if (frame === 1700) {
+            ['T','H','A','N','K'].forEach((c, i) => fire('text', COLORS.BLUE.h, 0.2 + (i*0.12), 0.3, c));
+            setTimeout(() => {
+                ['Y','O','U'].forEach((c, i) => fire('text', COLORS.BLUE.h, 0.4 + (i*0.12), 0.5, c));
+            }, 500);
+        }
+
+        // Phase 6: THE EXTENDED FINALE (Added as requested)
+        // A furious mix of colors before the silence
+        if (frame > 2000 && frame < 2250) {
+            if (frame % 15 === 0) {
+                const hue = rand(0, 360);
+                const x = rand(0.2, 0.8);
+                const y = rand(0.2, 0.5);
+                fire('peony', hue, x, y);
+            }
+            if (frame % 45 === 0) {
+                fire('willow', COLORS.GOLD.h, rand(0.1, 0.9), rand(0.2, 0.4));
+            }
+        }
+
+        // TEXT OVERLAYS TRIGGERS
+        if (frame === 2400) setShowCredit(true); // "Made with Gemini"
+        if (frame === 2800) setShowCredit(false); // Fade out
+        if (frame === 2900) setShowFinaleText(true); // "See you in 2025"
+
+        frame++;
+        requestAnimationFrame(loop);
+    };
+
+    const raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   return (
-    <canvas 
-        ref={canvasRef} 
-        className="absolute inset-0 z-[100] pointer-events-none"
-    />
+      <>
+        <canvas ref={canvasRef} className="absolute inset-0 z-[100] pointer-events-none" />
+        
+        {/* TEXT OVERLAY LAYER */}
+        <div className="absolute inset-0 z-[110] flex items-center justify-center pointer-events-none">
+            <AnimatePresence>
+                {showCredit && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 1.1, filter: 'blur(10px)' }}
+                        transition={{ duration: 1 }}
+                        className="text-center"
+                    >
+                         <h2 className="text-3xl md:text-5xl font-medium text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                            Made with Gemini
+                         </h2>
+                    </motion.div>
+                )}
+                
+                {showFinaleText && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 1.5 }}
+                        className="text-center"
+                    >
+                        <h1 className="text-4xl md:text-6xl text-white font-light tracking-widest" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                            See you in 2025.
+                        </h1>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+      </>
   );
 };
